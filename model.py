@@ -7,9 +7,9 @@ import config
 import data_processor
 import os
 class Model:
-    def __init__(self, text_seq, label, text_seq_len, word_index,inverse_word_index,
+    def __init__(self, text_seq, label, text_seq_len, word_index, inverse_word_index,
                  encoder_embedding_matrix, decoder_embedding_matrix,
-                 val_text_seq,val_label,val_text_seq_len,test_text_seq,):
+                 val_text_seq, val_label, val_text_seq_len, test_text_seq, test_text_seq_len):
         self.text_seq = text_seq
         self.label = label
         self.text_seq_len = text_seq_len
@@ -23,6 +23,7 @@ class Model:
         self.val_label = val_label
 
         self.test_text_seq = test_text_seq
+        self.test_text_seq_len = test_text_seq_len
         self.inference_ids=None
         self.final_seq_len=None
 
@@ -46,12 +47,17 @@ class Model:
         self.encoder_input_seq = tf.placeholder(tf.int32, [None, config.max_seq_len],
                                                 name="encoder_input_seq")
         tf.logging.info("encoder_input_seq:{}".format(self.encoder_input_seq))
-        self.encoder_input_seq_len = tf.placeholder(tf.int32, [None, 1], name="encoder_input_seq_len")
+        # 不能写none，1，应该是一维
+        # self.encoder_input_seq_len = tf.placeholder(tf.int32, [None, 1], name="encoder_input_seq_len")
+        self.encoder_input_seq_len = tf.placeholder(tf.int32, [None, ], name="encoder_input_seq_len")
         tf.logging.info("encoder_input_seq_len:{}".format(self.encoder_input_seq_len))
-        self.decoder_input_seq = tf.concat([tf.fill([self.encoder_input_seq.shape[0], 1], self.word_index[config.sos_token]),
-                                            self.encoder_input_seq], axis=-1, name="decoder_input_seq")
+
+        # self.decoder_input_seq = tf.concat([tf.fill([config.batch_size, 1], self.word_index[config.sos_token]),
+        #                                     self.encoder_input_seq], axis=-1, name="decoder_input_seq")
+        self.decoder_input_seq = tf.placeholder(tf.int32, [None, config.max_seq_len + 1], name="decoder_input_seq")
         tf.logging.info("decoder_input_seq:{}".format(self.decoder_input_seq))
-        self.decoder_input_seq_len = tf.placeholder(tf.int32, [None, 1], name="decoder_input_seq_len")
+        # self.decoder_input_seq_len = tf.placeholder(tf.int32, [None, 1], name="decoder_input_seq_len")
+        self.decoder_input_seq_len = tf.placeholder(tf.int32, [None], name="decoder_input_seq_len")
         tf.logging.info("decoder_input_seq_len:{}".format(self.decoder_input_seq_len))
         # target outputs
 
@@ -66,7 +72,7 @@ class Model:
         # target weight,decoder_input_len=encoder_input_len+1,shape should be same as decoder_input_len
         self.decoder_output_seq_mask = tf.sequence_mask(lengths=tf.add(self.encoder_input_seq_len, 1),
                                                         maxlen=config.max_seq_len,
-                                                        dtype=tf.int32)
+                                                        dtype=tf.float32)
         tf.logging.info("decoder_output_seq_mask:{}".format(self.decoder_output_seq_mask))
 
         # embedding
@@ -99,7 +105,7 @@ class Model:
         return self._loss
 
     def validate(self,sess,cur_epoch,):
-        tf.logger.info("Running Validation {}:".format(cur_epoch // config.validation_interval))
+        tf.logging.info("Running Validation {}:".format(cur_epoch // config.validation_interval))
         val_batches = math.ceil(len(self.val_text_seq) / config.batch_size)
         tf.logging.info("Training - texts shape: {}; labels shape {}"
                         .format(self.val_text_seq.shape, self.val_text_seq.shape))
@@ -107,32 +113,39 @@ class Model:
         for val_batch_number in range(val_batches):
             start_index = val_batch_number * config.batch_size
             end_index = min((val_batch_number + 1) * config.batch_size, len(self.val_text_seq))
-
-            fetchs = [
-                reconstruction_loss,
+            decoder_text_seq = np.concatenate((np.full((len(self.val_text_seq), 1),
+                                                       fill_value=self.word_index[config.sos_token],
+                                                       dtype=np.int32),
+                                               self.val_text_seq
+                                               ), axis=1)
+            fetches = [
+                self.loss(),
             ]
-            [ reconstruction_loss] = sess.run(fetchs=fetchs,
-                                                           feed_dict={
+            [_reconstruction_loss] = sess.run(fetches=fetches,
+                                              feed_dict={
                                                                self.encoder_input_seq: self.val_text_seq[
-                                                                   start_index, end_index],
+                                                                                       start_index:end_index],
                                                                self.encoder_input_seq_len:
                                                                    self.val_text_seq_len[
-                                                                       start_index, end_index],
+                                                                   start_index:end_index],
+                                                  self.decoder_input_seq:
+                                                      decoder_text_seq[
+                                                      start_index:end_index],
                                                                self.decoder_input_seq_len:
                                                                    self.val_text_seq_len[
-                                                                       start_index, end_index] + 1,
+                                                                   start_index:end_index],
                                                                self.inference_mode: False,
                                                                self.generation_mode: False,
                                                            })
-            val_loss+=reconstruction_loss
+            val_loss += _reconstruction_loss
         val_loss/=val_batches
         log_msg = "Validation : " \
                   "Reconstruction Loss: {:.4f}, \n"
-        tf.logger.info(log_msg.format(
+        tf.logging.info(log_msg.format(
             val_loss,
         ))
     def test(self,sess,):
-        tf.logger.info("Running Test :")
+        tf.logging.info("Running Test :")
         test_batches = math.ceil(len(self.test_text_seq) / config.batch_size)
         tf.logging.info("Test - texts shape: {}; "
                         .format(self.test_text_seq.shape,) )
@@ -142,25 +155,25 @@ class Model:
             start_index = test_batch_number * config.batch_size
             end_index = min((test_batch_number + 1) * config.batch_size, len(self.test_text_seq))
 
-            fetchs = [
+            fetches = [
                 self.inference_ids,
                 self.final_seq_len
             ]
-            [ inference_ids,final_seq_len] = sess.run(fetchs=fetchs,
-                                           feed_dict={
+            [_inference_ids, _final_seq_len] = sess.run(fetches=fetches,
+                                                        feed_dict={
                                                self.encoder_input_seq: self.test_text_seq[
-                                                   start_index, end_index],
+                                                                       start_index:end_index],
                                                self.encoder_input_seq_len:
                                                    self.test_text_seq_len[
-                                                       start_index, end_index],
+                                                   start_index:end_index],
                                                self.decoder_input_seq_len:
                                                    self.test_text_seq_len[
-                                                       start_index, end_index] + 1,
+                                                   start_index:end_index],
                                                self.inference_mode: True,
                                                self.generation_mode: False,
                                            })
-            test_generated_sequences.extend(inference_ids)
-            test_generated_sequences_len.extend(final_seq_len)
+            test_generated_sequences.extend(_inference_ids)
+            test_generated_sequences_len.extend(_final_seq_len)
         trimmed_raw_sequences = \
             [[index for index in sequence
               if index != config.predefined_word_index[config.eos_token]]
@@ -234,64 +247,106 @@ class Model:
                     output_keep_prob=config.recurrent_state_keep_prob,
                     state_keep_prob=config.recurrent_state_keep_prob
                 )
-                if not self.inference_mode and not self.generation_mode:
-                    with tf.name_scope("decoder_train"):
-                        helper = tf.contrib.seq2seq.TrainingHelper(
-                            input=self.decoder_input,
-                            sequence_length=self.decoder_input_seq_len
-                        )
-                else:
-                    with tf.name_scope("decoder_inference"):
-                        helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
-                            embedding=self.decoder_embedding,
-                            start_tokens=tf.tile(input=self.word_index[config.sos_token],
-                                                 multiples=[config.batch_size]),
-                            end_token=self.word_index[config.eos_token]
-                        )
+
+                # # tensor不能not ，可以is none看是否定义
+                # if not self.inference_mode and not self.generation_mode:
+                #     with tf.name_scope("decoder_train"):
+                #         helper = tf.contrib.seq2seq.TrainingHelper(
+                #             input=self.decoder_input,
+                #             sequence_length=self.decoder_input_seq_len
+                #         )
+                # else:
+                #     with tf.name_scope("decoder_inference"):
+                #         helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
+                #             embedding=self.decoder_embedding,
+                #             start_tokens=tf.tile(input=self.word_index[config.sos_token],
+                #                                  multiples=[config.batch_size]),
+                #             end_token=self.word_index[config.eos_token]
+                #         )
+                # projection_layer = tf.layers.Dense(units=config.vocab_size,
+                #                                    # activation=tf.nn.softmax,
+                #                                    use_bias=False)
+                # decoder = tf.contrib.seq2seq.BasicDecoder(cell=decoder_cell,
+                #                                           helper=helper,
+                #                                           initial_state=decoder_init_state,
+                #                                           output_layer=projection_layer)
+                # final_decoder_outputs, final_decoder_state, self.final_seq_len = tf.contrib.seq2seq.dynamic_decode(
+                #     decoder=decoder, impute_finished=True, maximum_iterations=config.max_seq_len,
+                # )
+                # tensor不能not ，可以is none看是否定义
                 projection_layer = tf.layers.Dense(units=config.vocab_size,
                                                    # activation=tf.nn.softmax,
                                                    use_bias=False)
-                decoder = tf.contrib.seq2seq.BasicDecoder(cell=decoder_cell,
-                                                          helper=helper,
-                                                          initial_state=decoder_init_state,
-                                                          output_layer=projection_layer)
-                final_decoder_outputs, final_decoder_state, self.final_seq_len = tf.contrib.seq2seq.dynamic_decode(
-                    decoder=decoder, impute_finished=True, maximum_iterations=config.max_seq_len,
-                )
-            training_output, self.inference_ids = final_decoder_outputs.rnn_output, final_decoder_outputs.sample_id
+                with tf.name_scope("decoder_train"):
+                    TrainingHelper = tf.contrib.seq2seq.TrainingHelper(
+                        inputs=self.decoder_input,
+                        sequence_length=self.decoder_input_seq_len
+                        # !!!!!!!!!!这个让我调了好久好久bug，因为原来长度就是少于最大就加1（相当于填eos），
+                        # decoder加入sos的时候，正好不改变长度，相当于挪走了eos，还不影响输入（开始时候我又加了1结果一直错）
+                    )
+                    decoder = tf.contrib.seq2seq.BasicDecoder(cell=decoder_cell,
+                                                              helper=TrainingHelper,
+                                                              initial_state=decoder_init_state,
+                                                              output_layer=projection_layer)
+                    training_final_decoder_outputs, final_decoder_state, _ = tf.contrib.seq2seq.dynamic_decode(
+                        decoder=decoder, impute_finished=True, maximum_iterations=config.max_seq_len,
+                    )
+                with tf.name_scope("decoder_inference"):
+                    GreedyEmbeddingHelper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
+                        embedding=self.decoder_embedding,
+                        # error input应该是[3]不是3
+                        # start_tokens=tf.tile(input=self.word_index[config.sos_token],
+                        start_tokens=tf.tile(input=[self.word_index[config.sos_token]],
+
+                                             multiples=[config.batch_size]),
+                        end_token=self.word_index[config.eos_token]
+                    )
+
+                    decoder = tf.contrib.seq2seq.BasicDecoder(cell=decoder_cell,
+                                                              helper=GreedyEmbeddingHelper,
+                                                              initial_state=decoder_init_state,
+                                                              output_layer=projection_layer)
+                    inference_final_decoder_outputs, final_decoder_state, self.final_seq_len = tf.contrib.seq2seq.dynamic_decode(
+                        decoder=decoder, impute_finished=True, maximum_iterations=config.max_seq_len,
+                    )
+            training_output, self.inference_ids = training_final_decoder_outputs.rnn_output, \
+                                                  inference_final_decoder_outputs.sample_id
             tf.logging.info("training_output:{}".format(training_output))
             tf.logging.info("inference_ids:{}".format(self.inference_ids))
             tf.logging.info("final_seq_len:{}".format(self.final_seq_len))
 
         # reconstruction loss
-        with tf.name_scope('reconstruction_loss'):
-            cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.decoder_output_seq,
-                                                                           logits=training_output)
-            reconstruction_loss = tf.reduce_mean(cross_entropy * self.decoder_output_seq_mask)
-            tf.logging.info("reconstruction_loss:{}".format(reconstruction_loss))
-
+        # 老是错
         # with tf.name_scope('reconstruction_loss'):
-        #     batch_maxlen = tf.reduce_max(self.sequence_lengths)
-        #     tf.logging.info("batch_maxlen: {}".format(batch_maxlen))
-        #
-        #     # the training decoder only emits outputs equal in time-steps to the
-        #     # max time-steps in the current batch
-        #     target_sequence = tf.slice(
-        #         input_=self.input_sequence,
-        #         begin=[0, 0],
-        #         size=[config.batch_size, batch_maxlen],
-        #         name="target_sequence")
-        #     tf.logging.info("target_sequence: {}".format(target_sequence))
-        #
-        #     output_sequence_mask = tf.sequence_mask(
-        #         lengths=tf.add(x=self.sequence_lengths, y=1),
-        #         maxlen=batch_maxlen,
-        #         dtype=tf.float32)
-        #
-        #     self.reconstruction_loss = tf.contrib.seq2seq.sequence_loss(
-        #         logits=training_output, targets=target_sequence,
-        #         weights=output_sequence_mask)
-        #     tf.logging.info("reconstruction_loss: {}".format(self.reconstruction_loss))
+        #     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.decoder_output_seq,
+        #                                                                    logits=training_output)
+        #     reconstruction_loss = tf.reduce_mean(cross_entropy * self.decoder_output_seq_mask)
+        #     tf.logging.info("reconstruction_loss:{}".format(reconstruction_loss))
+
+        # # 这个也会错，因为label会比输出少一个长度，正常label应该是输出加eos
+        with tf.name_scope('reconstruction_loss'):
+            batch_maxlen = tf.reduce_max(self.encoder_input_seq_len)
+            tf.logging.info("batch_maxlen: {}".format(batch_maxlen))
+
+            # the training decoder only emits outputs equal in time-steps to the
+            # max time-steps in the current batch
+            target_sequence = tf.slice(
+                input_=self.encoder_input_seq,
+                begin=[0, 0],
+                size=[config.batch_size, batch_maxlen],
+                name="target_sequence")
+            tf.logging.info("target_sequence: {}".format(target_sequence))
+
+            output_sequence_mask = tf.sequence_mask(
+                # lengths=tf.add(x=self.encoder_input_seq_len, y=1),
+                lengths=self.encoder_input_seq_len,
+                maxlen=batch_maxlen,
+                dtype=tf.float32)
+
+            reconstruction_loss = tf.contrib.seq2seq.sequence_loss(
+                logits=training_output, targets=target_sequence,
+                weights=output_sequence_mask)
+            tf.logging.info("reconstruction_loss: {}".format(reconstruction_loss))
         tf.summary.scalar(tensor=reconstruction_loss, name="reconstruction_loss_summary")
         all_summaries = tf.summary.merge_all()
 
@@ -325,47 +380,65 @@ class Model:
             shuffled_text_seq = self.text_seq[shuffle_indices]
             # shuffled_label_seq=self.text_seq[shuffle_indices]
             shuffled_text_seq_len = self.text_seq_len[shuffle_indices]
+            shuffled_decoder_text_seq = np.concatenate((np.full((len(self.text_seq), 1),
+                                                                fill_value=self.word_index[config.sos_token],
+                                                                dtype=np.int32),
+                                                        shuffled_text_seq
+                                                        ), axis=1)
 
             for cur_batch in range(num_batches):
                 start_index = cur_batch * config.batch_size
                 end_index = min((cur_batch + 1) * config.batch_size, len(self.text_seq))
+                # fetches = [
+                #     update_step,
+                #     reconstruction_loss,
+                #     all_summaries,
+                #     # training_output,
+                #     # target_sequence
+                # ]
 
-                fetchs = [
+                # [_, reconstruction_loss, all_summaries,to,ts] = sess.run(fetches=fetches,
+                fetches = [
                     update_step,
                     reconstruction_loss,
-                    all_summaries
+                    all_summaries,
+
                 ]
-                [_, reconstruction_loss, all_summaries] = sess.run(fetchs=fetchs,
-                                                                   feed_dict={
+                [_, _reconstruction_loss, _all_summaries] = sess.run(fetches=fetches,
+                                                                     feed_dict={
                                                                        self.encoder_input_seq: shuffled_text_seq[
-                                                                           start_index, end_index],
+                                                                                               start_index:end_index],
                                                                        self.encoder_input_seq_len:
                                                                            shuffled_text_seq_len[
-                                                                               start_index, end_index],
+                                                                           start_index:end_index],
+                                                                         self.decoder_input_seq: shuffled_decoder_text_seq[
+                                                                                                 start_index:end_index],
                                                                        self.decoder_input_seq_len:
                                                                            shuffled_text_seq_len[
-                                                                               start_index, end_index] + 1,
+                                                                           start_index:end_index],
                                                                        self.inference_mode: inference_mode,
                                                                        self.generation_mode: generation_mode,
                                                                    })
+                # print(training_output.shape)
+                # print(target_sequence.shape)
                 log_msg = "Epoch {}-{} : " \
                           "Reconstruction Loss: {:.4f}, "
-                tf.logger.debug(log_msg.format(
+                tf.logging.debug(log_msg.format(
                     cur_epoch, cur_batch,
-                    reconstruction_loss,
+                    _reconstruction_loss,
                 ))
-                epoch_loss += reconstruction_loss
+                epoch_loss += _reconstruction_loss
             epoch_loss /= num_batches
             log_msg = "----------------------------------" \
                       "Epoch {} : " \
                       "Reconstruction Loss: {:.4f}, " \
                       "----------------------------------"
-            tf.logger.info(log_msg.format(
+            tf.logging.info(log_msg.format(
                 cur_epoch,
                 epoch_loss,
             ))
 
-            writer.add_summary(all_summaries, cur_epoch)
+            writer.add_summary(_all_summaries, cur_epoch)
             writer.flush()
             # saver.save(sess=sess, save_path=config.model_save_path)
             if not cur_epoch % config.validation_interval:

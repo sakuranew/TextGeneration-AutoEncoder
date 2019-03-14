@@ -26,7 +26,7 @@ def load_glove_embedding(glove_embedding_path,word_index):
         low=-0.05, high=0.05).astype(dtype=np.float32)
     # eos之类的词向量的能够保证是相等
     decoder_embedding_matrix= copy.deepcopy(encoder_embedding_matrix)
-    tf.logger.info("encoder_embedding_matrix: {}".format(encoder_embedding_matrix.shape))
+    tf.logging.info("encoder_embedding_matrix: {}".format(encoder_embedding_matrix.shape))
     i = 0
     for word in word_index:
         try:
@@ -46,7 +46,7 @@ def load_glove_embedding(glove_embedding_path,word_index):
     # decoder_embedding_matrix = np.random.uniform(
     #     size=(global_config.vocab_size, global_config.embedding_size),
     #     low=-0.05, high=0.05).astype(dtype=np.float32)
-    # logger.debug("decoder_embedding_matrix: {}".format(decoder_embedding_matrix.shape))
+    # logging.debug("decoder_embedding_matrix: {}".format(decoder_embedding_matrix.shape))
 def get_labels(label_file_path, store_labels, store_path):
     all_labels = list(open(label_file_path, "r").readlines())
     all_labels = [label.strip() for label in all_labels]
@@ -67,7 +67,7 @@ def get_labels(label_file_path, store_labels, store_path):
     #         json.dump(index_to_label_map, file)
     #     with open(os.path.join(store_path, global_config.label_to_index_dict_file), 'w') as file:
     #         json.dump(label_to_index_map, file)
-    # logger.info("labels: {}".format(label_to_index_map))
+    # logging.info("labels: {}".format(label_to_index_map))
 
     one_hot_labels = list()
     for label in all_labels:

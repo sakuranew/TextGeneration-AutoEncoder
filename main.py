@@ -1,19 +1,25 @@
 import tensorflow as tf
+import os
 import data_processor
 import config
 import model
 
 if __name__=="__main__":
-    text_train_path="data/review-train.txt"
-    text_val_path="data/review-val.txt"
-    text_test_path="data/review-test.txt"
+    text_train_path = "data/reviews-train.txt"
+    # text_train_path="data/reviews-test.txt"
+    text_val_path = "data/reviews-val.txt"
+    text_test_path = "data/reviews-test.txt"
     glove_embedding_path="data/glove.6B.100d.txt"
     tf.logging.set_verbosity(tf.logging.DEBUG)
+    # os.environ["CUDA_VISIABLE"]
+    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+
     gpu_options = tf.GPUOptions(allow_growth=True)
     config_proto = tf.ConfigProto(
         log_device_placement=False, allow_soft_placement=True,
         gpu_options=gpu_options)
     sess = tf.Session(config=config_proto)
+
     text_seq, text_seq_len, word_index, inverse_word_index, text_tokenizer=data_processor.get_text_sequences(
         text_train_path,
     )
@@ -35,6 +41,7 @@ if __name__=="__main__":
                          val_text_seq=val_text_seq,
                          val_label=None,
                          val_text_seq_len=val_text_seq_len,
-                         test_text_seq=test_text_seq)
+                         test_text_seq=test_text_seq,
+                         test_text_seq_len=test_text_seq_len)
     my_model.build(sess,)
     my_model.test(sess)
