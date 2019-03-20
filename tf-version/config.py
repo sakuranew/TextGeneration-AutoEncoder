@@ -1,6 +1,6 @@
 # model config
 batch_size = 128
-epoch = 20
+epoch = 50
 learning_rate = 0.01
 
 encoder_num_units=256

@@ -195,7 +195,7 @@ class Model:
         dir_name=os.path.dirname(config.generated_sentences_save_path)
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
-        with open(config.generated_sentences_save_path,"w") as o:
+        with open(config.generated_sentences_save_path, "w") as o:
             o.write("raw_sentence           generated_sentences\n")
             for a,b in zip(raw_sentences,generated_sentences):
                 o.write(a+" ---> "+b+"\n")
@@ -367,11 +367,9 @@ class Model:
         learning_rate = tf.train.exponential_decay(initial_learning_rate,
                                                    global_step=global_step,
                                                    decay_steps=1000, decay_rate=0.9)
-        update_step = tf.train.AdagradDAOptimizer(learning_rate).minimize(loss=reconstruction_loss,
-
-                                                                          # update_step = tf.train.AdamOptimizer(learning_rate).minimize(loss=reconstruction_loss,
-                                                                          var_list=trainable_var,
-                                                                          global_step=global_step)
+        # update_step = tf.train.AdagradDAOptimizer(learning_rate).minimize(loss=reconstruction_loss,var_list=trainable_var,global_step=global_step)
+        update_step = tf.train.AdamOptimizer(learning_rate).minimize(loss=reconstruction_loss, var_list=trainable_var,
+                                                                     global_step=global_step)
 
         # train
 
