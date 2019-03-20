@@ -206,7 +206,7 @@ class Model:
         with tf.name_scope(name="encoder"):
             encoder_cell_fw = tf.nn.rnn_cell.DropoutWrapper(
                 tf.nn.rnn_cell.GRUCell(num_units=config.encoder_num_units,
-                                       kernel_initializer=tf.initializers.truncated_normal,
+                                       # kernel_initializer=tf.initializers.truncated_normal,
                                        name="encoder_cell_fw"),
                 input_keep_prob=config.recurrent_state_keep_prob,
                 output_keep_prob=config.recurrent_state_keep_prob,
@@ -214,7 +214,7 @@ class Model:
             )
             encoder_cell_bw = tf.nn.rnn_cell.DropoutWrapper(
                 tf.nn.rnn_cell.GRUCell(num_units=config.encoder_num_units,
-                                       kernel_initializer=tf.initializers.truncated_normal,
+                                       # kernel_initializer=tf.initializers.truncated_normal,
                                        name="encoder_cell_bw"),
                 input_keep_prob=config.recurrent_state_keep_prob,
                 output_keep_prob=config.recurrent_state_keep_prob,
@@ -236,11 +236,11 @@ class Model:
             tf.logging.info("decoder_init_state:{}".format(decoder_init_state))
 
             # decoder
-            with tf.name_scope(name="encoder"):
+            with tf.name_scope(name="decoder"):
 
                 decoder_cell = tf.nn.rnn_cell.DropoutWrapper(cell=tf.nn.rnn_cell.GRUCell(
                     num_units=config.decoder_num_units,
-                    kernel_initializer=tf.initializers.truncated_normal,
+                    # kernel_initializer=tf.initializers.truncated_normal,
                     name="decoder_cell"
                 ),
                     input_keep_prob=config.recurrent_state_keep_prob,
@@ -298,7 +298,7 @@ class Model:
                         # start_tokens=tf.tile(input=self.word_index[config.sos_token],
                         start_tokens=tf.tile(input=[self.word_index[config.sos_token]],
 
-                                             multiples=[config.batch_size]),
+                                             multiples=[tf.shape(self.encoder_input_seq)[0]]),
                         end_token=self.word_index[config.eos_token]
                     )
 
@@ -333,7 +333,8 @@ class Model:
             target_sequence = tf.slice(
                 input_=self.encoder_input_seq,
                 begin=[0, 0],
-                size=[config.batch_size, batch_maxlen],
+                # size=[self.encoder_input_seq.shape[0], batch_maxlen],
+                size=[tf.shape(self.encoder_input_seq)[0], batch_maxlen],
                 name="target_sequence")
             tf.logging.info("target_sequence: {}".format(target_sequence))
 
@@ -361,9 +362,16 @@ class Model:
         #     gradients, max_gradient_norm)
         # optimazer=tf.train.AdamOptimizer(config.learning_rate)
         # update_step=optimazer.apply_gradients(zip(clipped_gradients,trainable_var))
+        initial_learning_rate = config.learning_rate
+        global_step = tf.Variable(0, trainable=False)
+        learning_rate = tf.train.exponential_decay(initial_learning_rate,
+                                                   global_step=global_step,
+                                                   decay_steps=1000, decay_rate=0.9)
+        update_step = tf.train.AdagradDAOptimizer(learning_rate).minimize(loss=reconstruction_loss,
 
-        update_step = tf.train.AdamOptimizer(config.learning_rate).minimize(loss=reconstruction_loss,
-                                                                            var_list=trainable_var)
+                                                                          # update_step = tf.train.AdamOptimizer(learning_rate).minimize(loss=reconstruction_loss,
+                                                                          var_list=trainable_var,
+                                                                          global_step=global_step)
 
         # train
 

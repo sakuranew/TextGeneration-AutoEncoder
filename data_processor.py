@@ -83,6 +83,8 @@ def get_text_sequences(text_file_path,  ):
 
     text_tokenizer=keras.preprocessing.text.Tokenizer(config.vocab_size-num_predefined_tokens)
     with open(text_file_path,"r") as text:
+        text = text.readlines()[:2000]
+        # text=text[:20000]
         text_tokenizer.fit_on_texts(text)
     available_vocab = len(text_tokenizer.word_index)
     tf.logging.info("available_vocab:%d"%available_vocab)
@@ -95,10 +97,12 @@ def get_text_sequences(text_file_path,  ):
     text_tokenizer.word_index = word_index
 
     with open(text_file_path) as text_file:
+        text_file = text_file.readlines()[:2000]
+
         actual_sequences = text_tokenizer.texts_to_sequences(text_file)
 
-    text_seq_len=np.asarray(a=[len(x)+1 if len(x)<=config.max_seq_len else config.max_seq_len
-                               for x in actual_sequences],dtype=np.int32)   # x + 1 to accomodate a single EOS token
+    text_seq_len = np.asarray(a=[len(x) + 1 if len(x) < config.max_seq_len else config.max_seq_len
+                                 for x in actual_sequences], dtype=np.int32)   # x + 1 to accomodate a single EOS token
     trimmed_text_seq=[[x if x<config.vocab_size else word_index[config.unk_token]for x in seq]
                       for seq in actual_sequences]
     inverse_word_index = {v: k for k, v in word_index.items()}
@@ -113,9 +117,10 @@ def get_text_sequences(text_file_path,  ):
 def get_test_sequences(text_file_path, text_tokenizer, word_index, inverse_word_index):
     with open(text_file_path) as text_file:
         actual_sequences = text_tokenizer.texts_to_sequences(text_file)
-    actual_sentences=[generate_sentence_from_indices(x, inverse_word_index)
-             for x in actual_sequences]
-    text_seq_len=np.asarray(a=[len(x)+1 if len(x)<=config.max_seq_len else config.max_seq_len
+    actual_sentences = 0
+    # actual_sentences=[generate_sentence_from_indices(x, inverse_word_index)
+    #          for x in actual_sequences]
+    text_seq_len = np.asarray(a=[len(x) + 1 if len(x) < config.max_seq_len else config.max_seq_len
                                for x in actual_sequences],dtype=np.int32)   # x + 1 to accomodate a single EOS token
     trimmed_text_seq=[[x if x<config.vocab_size else word_index[config.unk_token]for x in seq]
                       for seq in actual_sequences]

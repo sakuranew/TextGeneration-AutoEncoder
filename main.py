@@ -5,8 +5,8 @@ import config
 import model
 
 if __name__=="__main__":
-    text_train_path = "data/reviews-train.txt"
-    # text_train_path="data/reviews-test.txt"
+    # text_train_path = "data/reviews-train.txt"
+    text_train_path = "data/reviews-test.txt"
     text_val_path = "data/reviews-val.txt"
     text_test_path = "data/reviews-test.txt"
     glove_embedding_path="data/glove.6B.100d.txt"

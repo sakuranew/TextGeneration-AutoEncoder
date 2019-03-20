@@ -1,18 +1,18 @@
 # model config
 batch_size = 128
 epoch = 20
-learning_rate=0.001
+learning_rate = 0.01
 
 encoder_num_units=256
 decoder_num_units=256
-recurrent_state_keep_prob=0.5
-fully_connected_keep_prob=0.5
-sequence_word_keep_prob=0.5
+recurrent_state_keep_prob = 0.8
+fully_connected_keep_prob = 0.8
+sequence_word_keep_prob = 0.8
 
-vocab_size=3000
+vocab_size = 10000
 embedding_size=100
-max_seq_len=30
-validation_interval=1
+max_seq_len = 15
+validation_interval = 2
 
 unk_token = "<unk>"
 sos_token = "<sos>"
