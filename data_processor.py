@@ -7,7 +7,7 @@ import copy
 
 
 def generate_sentence_from_indices(sequence, inverse_word_index):
-    words = (inverse_word_index[x] for x in sequence)
+    words = (inverse_word_index[x] for x in sequence if x != 0)
     sentence = " ".join(words)
     return sentence
 
