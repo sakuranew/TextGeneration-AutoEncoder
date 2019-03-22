@@ -7,7 +7,9 @@ import copy
 
 
 def generate_sentence_from_indices(sequence, inverse_word_index):
-    words = (inverse_word_index[x] for x in sequence if x != 0)
+    words = (inverse_word_index[x] for x in sequence if x != 0 and
+             x != config.predefined_word_index[config.eos_token] and
+             x != config.predefined_word_index[config.sos_token])
     sentence = " ".join(words)
     return sentence
 

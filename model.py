@@ -122,15 +122,15 @@ def build(text_seq, label, text_seq_len, word_index, inverse_word_index,
             decoder_single_input[0, 0,] = decoder_single_output_word_index
 
         sentence = data_processor.generate_sentence_from_indices(predict_output_seq, inverse_word_index)
-        sentence = [word for word in sentence if word != config.eos_token]
+        # sentence = [word for word in sentence if word != config.eos_token]
         generated_sentences.append(sentence)
     raw_sentences = \
         [data_processor.generate_sentence_from_indices(x, inverse_word_index)
          for x in inference_seqs]
-    raw_sentences = \
-        [[word for word in sentence
-          if word != config.eos_token]
-         for sentence in raw_sentences]
+    # raw_sentences = \
+    #     [[word for word in sentence
+    #       if word != config.eos_token]
+    #      for sentence in raw_sentences]
 
     dir_name = os.path.dirname(config.generated_sentences_save_path)
     if not os.path.exists(dir_name):
