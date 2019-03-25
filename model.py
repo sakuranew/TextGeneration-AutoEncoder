@@ -25,6 +25,8 @@ def build(text_seq, label, text_seq_len, word_index, inverse_word_index,
     encoder = keras.layers.LSTM(units=config.encoder_num_units,
                                 activation="tanh",
                                 return_state=True,
+                                dropout=config.recurrent_state_keep_prob,
+                                recurrent_dropout=config.recurrent_state_keep_prob,
                                 name="encoder")
     encoder_output, encoder_state_h, encoder_state_c = encoder(encoder_embedding)
     encoder_state = [encoder_state_h, encoder_state_c]
@@ -41,6 +43,8 @@ def build(text_seq, label, text_seq_len, word_index, inverse_word_index,
                                 activation="tanh",
                                 return_state=True,
                                 return_sequences=True,
+                                dropout=config.recurrent_state_keep_prob,
+                                recurrent_dropout=config.recurrent_state_keep_prob,
                                 name="decoder")
     decoder_output, decoder_state_h, decoder_state_c = decoder(decoder_embedding,
                                                                initial_state=encoder_state)
@@ -68,12 +72,14 @@ def build(text_seq, label, text_seq_len, word_index, inverse_word_index,
                                                dtype=np.int32),
                                        ), axis=1)
     one_hot_decoder_outputs = keras.utils.to_categorical(_decoder_outputs, num_classes=config.vocab_size)
+
     s2s_model.compile(optimizer="rmsprop",
                       loss="categorical_crossentropy")
     s2s_model.fit(x=[_encoder_input, _decoder_inputs],
                   y=one_hot_decoder_outputs,
                   batch_size=config.batch_size,
-                  epochs=config.epoch)
+                  epochs=config.epoch,
+                  validation_split=0.1)
 
     # inference model
     encoder_model = keras.Model(encoder_input, encoder_state)
@@ -87,12 +93,15 @@ def build(text_seq, label, text_seq_len, word_index, inverse_word_index,
     decoder_model = keras.Model(
         [decoder_inputs] + decoder_states_inputs,
         [decoder_outputs] + decoder_states)
-    print(decoder_model.summary())
+    print(decoder_model.summary(line_length=200))
 
+    #
     # inference
     generated_sentences = []
-    inference_seqs = text_seq
-    # inference_seqs=test_text_seq
+    # inference_seqs = text_seq
+    inference_seqs = test_text_seq
+
+
     for seq_index in range(len(inference_seqs)):
         input_seq = inference_seqs[seq_index:seq_index + 1]
         predict_output_seq = []
@@ -124,6 +133,7 @@ def build(text_seq, label, text_seq_len, word_index, inverse_word_index,
         sentence = data_processor.generate_sentence_from_indices(predict_output_seq, inverse_word_index)
         # sentence = [word for word in sentence if word != config.eos_token]
         generated_sentences.append(sentence)
+
     raw_sentences = \
         [data_processor.generate_sentence_from_indices(x, inverse_word_index)
          for x in inference_seqs]
